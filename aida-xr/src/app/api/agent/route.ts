@@ -2,67 +2,96 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/lib/gemini';
 import { FREE_MUSIC_LIBRARY, getBestMatch } from '@/lib/freeMusic';
 
-const SYSTEM_PROMPT = `You are AIDA, an AI DJ. Parse commands and respond with JSON only.
+// Define valid JSON actions in the prompt
+const SYSTEM_PROMPT = `You are AIDA, an advanced AI DJ Assistant. Your goal is to help the user mix music professionally or take control when requested.
 
-TRACKS:
-- "stayin-alive" = "Stayin' Alive" (Bee Gees)
-- "another-one-bites-the-dust" = "Another One Bites the Dust" (Queen)
-- "world-burn" = "I'd Let The World Burn" (David Kushner)
-- "hoodtrap" = "Hoodtrap / Mylancore Remix"
-- "house" = "House Groove"
-- "techno" = "Techno Drive"
+You receive the current state of the DJ console (decks, crossfader, BPM, etc.) and a User Request.
+You must respond with a STRICT JSON object containing an "action", "parameters", and "speech".
 
-ACTIONS:
-- LOAD_TRACK: {deck:"A"|"B", trackId:string}
-- PLAY: {deck:"A"|"B"}
-- STOP: {deck:"A"|"B"}
-- CROSSFADE: {value:0-1}
-- BEAT_DROP: {}
-- EXPLAIN: {}
+AVAILABLE ACTIONS:
+1. LOAD_TRACK: Load a song onto a deck.
+   - parameters: { deck: "A"|"B", trackId: string }
+2. PLAY: Start playback.
+   - parameters: { deck: "A"|"B" }
+3. STOP: Stop playback.
+   - parameters: { deck: "A"|"B" }
+4. SET_CROSSFADER: Move the crossfader.
+   - parameters: { value: number (0.0 to 1.0) }
+5. SET_EQ: Adjust EQ (Low/Mid/High).
+   - parameters: { deck: "A"|"B", low?: number, mid?: number, high?: number } (0.0 to 1.0)
+6. SET_FILTER: Adjust Filter.
+   - parameters: { deck: "A"|"B", value: number } (0.0 to 1.0, 1.0 is open)
+7. SET_EFFECT: Apply an effect (reverb, delay).
+   - parameters: { deck: "A"|"B", effect: "reverb"|"delay", value: number } (0.0 to 1.0)
+8. EMOTION_MODE: Change the vibe/lighting/presets.
+   - parameters: { mode: "neutral"|"dreamy"|"sad"|"hype"|"aggressive" }
+9. EXPLAIN: Just talk to the user.
+   - parameters: {}
+10. AI_REMIX_STEP: Perform the next logical mixing step based on the current state (for autonomous mixing).
+    - parameters: { 
+        updates: [
+          { type: "deck", deck: "A"|"B", playing?: boolean, volume?: number, filter?: number, eq?: {low?: number, mid?: number, high?: number} },
+          { type: "mixer", crossfader?: number, masterVolume?: number },
+          { type: "emotion", mode?: string }
+        ]
+      }
 
-Examples:
-"play stayin alive" → {"action":"LOAD_TRACK","parameters":{"deck":"A","trackId":"stayin-alive"},"speech":"Playing Stayin' Alive"}
-"another one bites the dust on B" → {"action":"LOAD_TRACK","parameters":{"deck":"B","trackId":"another-one-bites-the-dust"},"speech":"Playing Another One Bites the Dust"}
+TRACK LIBRARY:
+${FREE_MUSIC_LIBRARY.map(t => `- "${t.id}": ${t.title} (${t.bpm} BPM, ${t.genre})`).join('\n')}
 
-JSON only.`;
+RULES:
+- Output JSON ONLY. No markdown, no code blocks.
+- "speech" should be a short, cool DJ announcement (e.g., "Dropping the bass!", "Fading into Deck B").
+- If the user asks to "mix it" or "remix", use logical steps to transition.
+`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { message } = await req.json();
-    console.log("🎧 Agent:", message);
+    const { message, state } = await req.json();
+    console.log("🎧 Agent Request:", message);
 
-    // Pre-processing for instant local matches (faster than LLM)
-    const lowerMsg = message.toLowerCase();
-    let quickMatchId = null;
-    
-    if (lowerMsg.includes("stayin alive")) quickMatchId = "stayin-alive";
-    else if (lowerMsg.includes("another one")) quickMatchId = "another-one-bites-the-dust";
-    else if (lowerMsg.includes("world burn")) quickMatchId = "world-burn";
+    // Quick Local Parsing for Track Loading (Faster than LLM)
+    if (!state) { // Only do quick parse if not in complex remix loop
+        const lowerMsg = message.toLowerCase();
+        let quickMatchId = null;
+        
+        if (lowerMsg.includes("stayin alive")) quickMatchId = "stayin-alive";
+        else if (lowerMsg.includes("another one")) quickMatchId = "another-one-bites-the-dust";
+        else if (lowerMsg.includes("world burn")) quickMatchId = "world-burn";
+        else if (lowerMsg.includes("hoodtrap")) quickMatchId = "hoodtrap";
 
-    if (quickMatchId) {
-       const track = FREE_MUSIC_LIBRARY.find(t => t.id === quickMatchId);
-       if (track) {
-         return NextResponse.json({
-            action: "LOAD_TRACK",
-            parameters: {
-              deck: "A", // Default to A if not specified (LLM handles deck parsing better, but this is fast path)
-              trackId: track.id,
-              title: track.title,
-              url: track.url,
-              bpm: track.bpm,
-            },
-            speech: `🎵 Playing "${track.title}"`
-         });
-       }
+        if (quickMatchId) {
+            const track = FREE_MUSIC_LIBRARY.find(t => t.id === quickMatchId);
+            if (track) {
+                return NextResponse.json({
+                    action: "LOAD_TRACK",
+                    parameters: { deck: "A", trackId: track.id },
+                    speech: `🎵 Loading "${track.title}"`
+                });
+            }
+        }
     }
 
-    // LLM Path
+    // Context string construction
+    let contextString = "";
+    if (state) {
+        contextString = `
+CURRENT STATE:
+Deck A: ${state.deckA.playing ? 'PLAYING' : 'STOPPED'}, Vol: ${state.deckA.volume.toFixed(2)}, Filter: ${state.deckA.filter.toFixed(2)}
+Deck B: ${state.deckB.playing ? 'PLAYING' : 'STOPPED'}, Vol: ${state.deckB.volume.toFixed(2)}, Filter: ${state.deckB.filter.toFixed(2)}
+Crossfader: ${state.crossfader.toFixed(2)}
+Emotion: ${state.emotionMode}
+`;
+    }
+
+    // Call Gemini
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
-      contents: `${SYSTEM_PROMPT}\n\nUser: "${message}"\nJSON:`,
+      contents: `${SYSTEM_PROMPT}\n${contextString}\nUser: "${message}"\nJSON:`,
     });
 
     let text = response.text || "";
+    // Clean up markdown if present
     text = text.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
     const match = text.match(/\{[\s\S]*\}/);
     if (match) text = match[0];
@@ -70,38 +99,28 @@ export async function POST(req: NextRequest) {
     let parsed;
     try {
       parsed = JSON.parse(text);
-    } catch {
-      return NextResponse.json({ action: "EXPLAIN", speech: "I didn't catch that song name." });
+    } catch (e) {
+      console.error("JSON Parse Error:", text);
+      return NextResponse.json({ action: "EXPLAIN", speech: "I'm having trouble thinking right now." });
     }
 
-    // Handle LOAD_TRACK
+    // Post-processing for LOAD_TRACK to ensure full track details
     if (parsed.action === "LOAD_TRACK" && parsed.parameters?.trackId) {
-      // Try exact ID match first
-      let track = FREE_MUSIC_LIBRARY.find(t => t.id === parsed.parameters.trackId);
-      
-      // Fallback to search
-      if (!track) {
-        track = getBestMatch(parsed.parameters.trackId);
-      }
-      
-      if (track) {
-        return NextResponse.json({
-          action: "LOAD_TRACK",
-          parameters: {
-            deck: parsed.parameters.deck || "A",
-            trackId: track.id,
-            title: track.title,
-            url: track.url,
-            bpm: track.bpm,
-          },
-          speech: `🎵 Playing "${track.title}" on Deck ${parsed.parameters.deck || "A"}`
-        });
-      }
+        let track = FREE_MUSIC_LIBRARY.find(t => t.id === parsed.parameters.trackId);
+        if (!track) track = getBestMatch(parsed.parameters.trackId);
+        
+        if (track) {
+            parsed.parameters.trackId = track.id;
+            parsed.parameters.title = track.title;
+            parsed.parameters.url = track.url;
+            parsed.parameters.bpm = track.bpm;
+        }
     }
 
     return NextResponse.json(parsed);
+
   } catch (e: any) {
-    console.error("Error:", e?.message);
-    return NextResponse.json({ action: "EXPLAIN", speech: "Error processing command" });
+    console.error("Agent Error:", e?.message);
+    return NextResponse.json({ action: "EXPLAIN", speech: "System malfunction." });
   }
 }

@@ -65,3 +65,4 @@ function EQKnob({ label, color }: { label: string, color: string }) {
 }
 
 
+

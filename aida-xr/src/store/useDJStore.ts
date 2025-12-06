@@ -7,6 +7,7 @@ export type SpatialSourceType = 'deckA' | 'deckB' | 'stem:drums' | 'stem:bass' |
 
 interface DeckState {
   sourceType: DeckSourceType
+  loading: boolean // New: Loading state
   playing: boolean
   track: string | null
   url: string | null
@@ -99,6 +100,7 @@ interface DJState {
 
 const defaultDeck: DeckState = {
   sourceType: 'local',
+  loading: false,
   playing: false,
   track: null,
   url: null,

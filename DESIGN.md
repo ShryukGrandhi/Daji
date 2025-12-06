@@ -59,3 +59,4 @@ The user stands at a "console" floating at chest height (~1.1m).
 *   **3D Assets:** Procedural geometry (Drei shapes) to keep it lightweight for the hackathon.
 
 
+

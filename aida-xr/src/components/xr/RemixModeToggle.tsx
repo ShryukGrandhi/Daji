@@ -34,81 +34,49 @@ export function RemixModeToggle() {
           const phase = phaseRef.current
           const currentState = useDJStore.getState()
           
-          // Phase-based DJ logic
-          if (phase === 0) {
-              // INTRO: Start deck A, gentle filter, fade it in
-              if (actionCountRef.current === 1) {
-                  updateDeck('A', { playing: true, filter: 0.6, volume: 0.7 })
-                  setCoachMessage("🎧 AI: Starting with filtered intro...")
-              } else if (actionCountRef.current === 2) {
-                  updateDeck('A', { filter: 0.8 })
-                  setCoachMessage("🎧 AI: Opening up the filter...")
-              } else if (actionCountRef.current === 3) {
-                  updateDeck('A', { filter: 1, volume: 1 })
-                  setCoachMessage("🎧 AI: Full power on Deck A!")
-                  phaseRef.current = 1
-                  actionCountRef.current = 0
-              }
-          } else if (phase === 1) {
-              // BUILDUP: Bring in deck B, start crossfading
-              if (actionCountRef.current === 1) {
-                  updateDeck('B', { playing: true, filter: 0.4, volume: 0.5 })
-                  setCoachMessage("🎧 AI: Bringing in Deck B underneath...")
-              } else if (actionCountRef.current === 2) {
-                  setCrossfader(0.3)
-                  updateDeck('B', { filter: 0.6 })
-                  setCoachMessage("🎧 AI: Building tension...")
-                  setEmotionMode('hype')
-              } else if (actionCountRef.current === 3) {
-                  setCrossfader(0.4)
-                  updateDeck('A', { eq: { low: 0.3, mid: 0.5, high: 0.5 }})
-                  setCoachMessage("🎧 AI: Cutting bass on A for the drop...")
-              } else if (actionCountRef.current === 4) {
-                  // THE DROP
-                  setCrossfader(0.6)
-                  updateDeck('A', { eq: { low: 0.5, mid: 0.5, high: 0.5 }, filter: 0.7 })
-                  updateDeck('B', { filter: 1, volume: 1 })
-                  setEmotionMode('aggressive')
-                  setCoachMessage("💥 AI: DROP! Deck B takes over!")
-                  addScore(25, "Perfect AI Drop!")
-                  phaseRef.current = 2
-                  actionCountRef.current = 0
-              }
-          } else if (phase === 2) {
-              // DROP: Ride the energy
-              if (actionCountRef.current === 1) {
-                  setCrossfader(0.8)
-                  setCoachMessage("🎧 AI: Riding the energy...")
-              } else if (actionCountRef.current === 2) {
-                  setCrossfader(1)
-                  updateDeck('A', { playing: false })
-                  setCoachMessage("🎧 AI: Full Deck B!")
-              } else if (actionCountRef.current === 3) {
-                  setEmotionMode('dreamy')
-                  updateDeck('B', { reverb: 0.3 })
-                  setCoachMessage("🎧 AI: Adding space for breakdown...")
-                  phaseRef.current = 3
-                  actionCountRef.current = 0
-              }
-          } else if (phase === 3) {
-              // BREAKDOWN: Calm down, prepare next cycle
-              if (actionCountRef.current === 1) {
-                  updateDeck('B', { filter: 0.7, reverb: 0.5 })
-                  setCoachMessage("🎧 AI: Filtering down...")
-              } else if (actionCountRef.current === 2) {
-                  setEmotionMode('neutral')
-                  updateDeck('B', { reverb: 0, filter: 1 })
-                  setCoachMessage("🎧 AI: Back to clean...")
-              } else if (actionCountRef.current === 3) {
-                  // Reset for next cycle
-                  setCrossfader(0.5)
-                  updateDeck('A', { playing: true, filter: 0.5, volume: 0.5 })
-                  setCoachMessage("🎧 AI: Starting new cycle...")
-                  addScore(10, "AI Mix Cycle Complete!")
-                  phaseRef.current = 0
-                  actionCountRef.current = 0
-              }
+          // Phase-based DJ logic driven by AI Agent
+          if (remixMode) {
+             fetch('/api/agent', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ 
+                     message: "Perform the next best mixing step based on the current state to make it sound professional. If in a drop, keep energy high. If transitioning, be smooth.",
+                     state: {
+                         deckA: { playing: currentState.deckA.playing, volume: currentState.deckA.volume, filter: currentState.deckA.filter, eq: currentState.deckA.eq },
+                         deckB: { playing: currentState.deckB.playing, volume: currentState.deckB.volume, filter: currentState.deckB.filter, eq: currentState.deckB.eq },
+                         crossfader: currentState.crossfader,
+                         emotionMode: currentState.emotionMode
+                     }
+                 })
+             })
+             .then(res => res.json())
+             .then(data => {
+                 if (data.speech) setCoachMessage(`🎧 AI: ${data.speech}`);
+                 
+                 // Handle AI_REMIX_STEP generic updates
+                 if (data.action === 'AI_REMIX_STEP' && data.parameters?.updates) {
+                     data.parameters.updates.forEach((u: any) => {
+                         if (u.type === 'deck') {
+                             updateDeck(u.deck, { ...u });
+                         } else if (u.type === 'mixer') {
+                             if (u.crossfader !== undefined) setCrossfader(u.crossfader);
+                         } else if (u.type === 'emotion') {
+                             if (u.mode) setEmotionMode(u.mode);
+                         }
+                     });
+                 }
+                 // Handle specific actions
+                 else if (data.action === 'SET_CROSSFADER') setCrossfader(data.parameters.value);
+                 else if (data.action === 'SET_FILTER') updateDeck(data.parameters.deck, { filter: data.parameters.value });
+                 else if (data.action === 'SET_EQ') updateDeck(data.parameters.deck, { eq: { ...data.parameters } });
+                 else if (data.action === 'PLAY') updateDeck(data.parameters.deck, { playing: true });
+                 else if (data.action === 'STOP') updateDeck(data.parameters.deck, { playing: false });
+                 else if (data.action === 'EMOTION_MODE') setEmotionMode(data.parameters.mode);
+             })
+             .catch(err => console.error("AI Remix Error:", err));
           }
+      }
+  })
       }
   })
 

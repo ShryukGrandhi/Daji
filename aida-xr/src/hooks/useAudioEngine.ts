@@ -168,6 +168,7 @@ export function useAudioEngine() {
     
     const load = async () => {
       currentUrlARef.current = deckAUrl
+      useDJStore.getState().updateDeck('A', { loading: true })
       try {
         playerARef.current.stop()
         // Only load if local. YouTube is handled by YouTubeDeck component.
@@ -175,8 +176,11 @@ export function useAudioEngine() {
             await playerARef.current.load(deckAUrl)
             if (deckAPlaying) playerARef.current.start()
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn("[Audio] A load warn:", err)
+        useDJStore.getState().setCoachMessage(`Audio Error A: ${err.message || 'Load Failed'}`)
+      } finally {
+        useDJStore.getState().updateDeck('A', { loading: false })
       }
     }
     load()
@@ -189,14 +193,18 @@ export function useAudioEngine() {
     
     const load = async () => {
       currentUrlBRef.current = deckBUrl
+      useDJStore.getState().updateDeck('B', { loading: true })
       try {
         playerBRef.current.stop()
         if (deckBSource === 'local') {
             await playerBRef.current.load(deckBUrl)
             if (deckBPlaying) playerBRef.current.start()
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn("[Audio] B load warn:", err)
+        useDJStore.getState().setCoachMessage(`Audio Error B: ${err.message || 'Load Failed'}`)
+      } finally {
+        useDJStore.getState().updateDeck('B', { loading: false })
       }
     }
     load()

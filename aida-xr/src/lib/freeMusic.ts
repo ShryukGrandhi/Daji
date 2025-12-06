@@ -14,6 +14,15 @@ const proxyUrl = (url: string) => `/api/audio?url=${encodeURIComponent(url)}`
 
 export const FREE_MUSIC_LIBRARY: FreeTrack[] = [
   {
+    id: 'house-test',
+    title: 'House Test (MP3)',
+    artist: 'SoundHelix',
+    genre: 'house',
+    bpm: 124,
+    url: proxyUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'),
+    tags: ['house', 'test', 'mp3']
+  },
+  {
     id: 'stayin-alive',
     title: "Stayin' Alive",
     artist: 'Bee Gees',

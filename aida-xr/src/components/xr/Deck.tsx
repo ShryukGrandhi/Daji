@@ -11,6 +11,7 @@ interface DeckProps {
 
 export function Deck({ id, label }: DeckProps) {
   const playing = useDJStore((state) => id === 'A' ? state.deckA.playing : state.deckB.playing)
+  const loading = useDJStore((state) => id === 'A' ? state.deckA.loading : state.deckB.loading)
   const track = useDJStore((state) => id === 'A' ? state.deckA.track : state.deckB.track)
   const bpm = useDJStore((state) => id === 'A' ? state.deckA.bpm : state.deckB.bpm)
   const loop = useDJStore((state) => id === 'A' ? state.deckA.loop : state.deckB.loop)
@@ -76,7 +77,7 @@ export function Deck({ id, label }: DeckProps) {
           rotation={[-Math.PI / 2, 0, 0]}
           maxWidth={0.45}
         >
-          {track || "No Track Loaded"}
+          {loading ? "LOADING..." : (track || "No Track Loaded")}
         </Text>
       </group>
 
@@ -156,16 +157,16 @@ export function Deck({ id, label }: DeckProps) {
       {/* Control Buttons Row */}
       <group position={[0, 0.02, 0.38]}>
         {/* PLAY/PAUSE Button */}
-        <group position={[-0.15, 0, 0]} onClick={togglePlay}>
+        <group position={[-0.15, 0, 0]} onClick={loading ? undefined : togglePlay}>
           <RoundedBox args={[0.08, 0.025, 0.08]} radius={0.01}>
             <meshStandardMaterial 
-              color={playing ? "#10b981" : "#222"} 
-              emissive={playing ? "#10b981" : "#000"}
-              emissiveIntensity={playing ? 0.8 : 0}
+              color={loading ? "#f59e0b" : (playing ? "#10b981" : "#222")} 
+              emissive={loading ? "#f59e0b" : (playing ? "#10b981" : "#000")}
+              emissiveIntensity={playing || loading ? 0.8 : 0}
             />
           </RoundedBox>
-          <Text position={[0, 0.013, 0]} fontSize={0.035} color={playing ? "#000" : "#fff"} rotation={[-Math.PI/2,0,0]}>
-            {playing ? "▌▌" : "▶"}
+          <Text position={[0, 0.013, 0]} fontSize={0.035} color={(playing || loading) ? "#000" : "#fff"} rotation={[-Math.PI/2,0,0]}>
+            {loading ? "⏳" : (playing ? "▌▌" : "▶")}
           </Text>
         </group>
 
