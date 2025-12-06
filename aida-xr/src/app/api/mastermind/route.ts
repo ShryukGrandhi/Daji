@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // DigitalOcean Agent - Music Mastermind
-const DO_AGENT_KEY = process.env.DO_AGENT_KEY || "z5L4McrWAZHx21yFJBBcpln_4BGpWPZD";
+const DO_AGENT_KEY = process.env.DO_AGENT_KEY || "";
 const DO_AGENT_ENDPOINT = "https://cluster-api.do-ai.run/v1/chat/completions";
 
 interface MastermindResponse {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FREE_MUSIC_LIBRARY, getBestMatch } from '@/lib/freeMusic';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "AIzaSyC_E1NN4CCxwpCVOY3HpcdFQUX3VKXMCpY";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 
 // Define valid JSON actions in the prompt
 const SYSTEM_PROMPT = `You are AIDA, an advanced AI DJ Assistant. Your goal is to help the user mix music professionally or take control when requested.
