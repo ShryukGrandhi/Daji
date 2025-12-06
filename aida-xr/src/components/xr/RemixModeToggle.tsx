@@ -61,6 +61,19 @@ export function RemixModeToggle() {
     return currentPhase
   }
 
+  // Beat match deck B to deck A's tempo
+  const applyBeatMatch = () => {
+    const state = useDJStore.getState()
+    if (state.deckA.bpm > 0 && state.deckB.bpm > 0) {
+      // Match deck B to deck A's tempo
+      const matchedRate = state.deckA.bpm / state.deckB.bpm
+      // Only adjust if significant BPM difference
+      if (Math.abs(matchedRate - 1) > 0.01) {
+        updateDeck('B', { playbackRate: matchedRate })
+      }
+    }
+  }
+
   // Set target values based on musical phase
   const setTargetsForPhase = (phase: RemixPhase, progress: number) => {
     const state = useDJStore.getState()
@@ -70,14 +83,22 @@ export function RemixModeToggle() {
       case 'intro':
         // Start with one deck, clean sound
         setCoachMessage("🎧 AI REMIX: Setting the vibe...")
+        // Reset playback rates to natural
+        updateDeck('A', { playbackRate: 1.0 })
+        updateDeck('B', { playbackRate: 1.0 })
         targets.crossfader = 0.2
         targets.deckA = { filter: 1, eqLow: 0.7, eqMid: 0.6, eqHigh: 0.5, volume: 1 }
         targets.deckB = { filter: 0.3, eqLow: 0, eqMid: 0.3, eqHigh: 0.4, volume: 0.3 }
         break
         
       case 'building':
-        // Gradually bring in more elements, build tension
-        setCoachMessage("🔥 AI REMIX: Building energy...")
+        // Beat match when bringing in deck B!
+        if (progress < 0.1) {
+          applyBeatMatch()
+          setCoachMessage("🔥 AI REMIX: Beat matching & building energy...")
+        } else {
+          setCoachMessage("🔥 AI REMIX: Building energy...")
+        }
         setEmotionMode('hype')
         // Gradually open filter and bring in deck B
         targets.crossfader = lerp(0.2, 0.4, progress)

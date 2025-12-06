@@ -488,33 +488,45 @@ export const useDJStore = create<DJState>((set, get) => ({
     
     set({ demoMode: true, aiGuidance: { ...state.aiGuidance, active: false } })
     
-    // 1. Setup tracks - Start with Deck A
+    // BPM info for beat matching
+    const bpmA = 104 // Stayin' Alive
+    const bpmB = 110 // Another One Bites the Dust
+    
+    // Beat match: Slow down track B to match track A's tempo
+    // playbackRate = targetBPM / originalBPM
+    const matchedPlaybackRate = bpmA / bpmB // 104/110 = 0.9455
+    
+    // 1. Setup tracks - Start with Deck A at natural tempo
     updateDeck('A', { 
       track: "Stayin' Alive", 
       url: '/BeeGees.mp4', 
-      bpm: 104, 
+      bpm: bpmA, 
       playing: true, 
       volume: 1,
-      sourceType: 'local', // Important for audio engine!
+      sourceType: 'local',
+      playbackRate: 1.0, // Natural tempo
       eq: { low: 0.8, mid: 0.7, high: 0.7 },
       filter: 1,
       reverb: 0,
       delay: 0
     })
+    
+    // Setup Deck B - BEAT MATCHED to Deck A's tempo
     updateDeck('B', { 
       track: "Another One Bites the Dust", 
       url: '/Queen.mp4', 
-      bpm: 110, 
+      bpm: bpmB, 
       playing: false, 
       volume: 0, 
-      sourceType: 'local', // Important for audio engine!
-      eq: { low: 0, mid: 0.5, high: 0.6 }, // Start filtered
-      filter: 0.3, // Low pass to start
+      sourceType: 'local',
+      playbackRate: matchedPlaybackRate, // Slowed to 104 BPM to match Deck A!
+      eq: { low: 0, mid: 0.5, high: 0.6 },
+      filter: 0.3,
       reverb: 0,
       delay: 0
     })
     setCrossfader(0)
-    setCoachMessage("🎧 DEMO: Stayin' Alive - Building energy...")
+    setCoachMessage("🎧 DEMO: Stayin' Alive @ 104 BPM - Beat matched!")
 
     // Timeline:
     // 0-5s: Deck A plays, build anticipation
@@ -525,11 +537,11 @@ export const useDJStore = create<DJState>((set, get) => ({
     
     const timeouts: NodeJS.Timeout[] = []
 
-    // 5s - Cue Deck B
+    // 5s - Cue Deck B (already beat-matched)
     timeouts.push(setTimeout(() => {
       if (!get().demoMode) return
       updateDeck('B', { playing: true, volume: 0.3 })
-      setCoachMessage("🎚️ Bringing in Queen - filtered...")
+      setCoachMessage("🎚️ Cueing Queen @ 104 BPM (beat matched!)...")
     }, 5000))
 
     // 6-10s - Open filter gradually
@@ -589,7 +601,7 @@ export const useDJStore = create<DJState>((set, get) => ({
           clearInterval(transitionInterval)
           set({ demoIntervalId: null })
           
-          // Final state
+          // Final state - transition complete
           setCrossfader(1)
           updateDeck('A', { playing: false, volume: 0 })
           updateDeck('B', { 
@@ -597,15 +609,33 @@ export const useDJStore = create<DJState>((set, get) => ({
             eq: { low: 0.8, mid: 0.75, high: 0.75 },
             filter: 1
           })
-          setCoachMessage("✨ PERFECT TRANSITION! Another One Bites the Dust!")
+          setCoachMessage("✨ PERFECT BEAT-MATCHED TRANSITION!")
           addScore(100, "Demo Mix Complete!")
+          
+          // Gradually return to natural tempo (optional - sounds smoother)
+          // Go from 0.9455 (matched) back to 1.0 (natural) over 3 seconds
+          let tempoStep = 0
+          const tempoSteps = 30
+          const startRate = 104 / 110 // 0.9455
+          const tempoInterval = setInterval(() => {
+            tempoStep++
+            const progress = tempoStep / tempoSteps
+            const newRate = startRate + (1.0 - startRate) * progress
+            updateDeck('B', { playbackRate: newRate })
+            
+            if (tempoStep >= tempoSteps) {
+              clearInterval(tempoInterval)
+              updateDeck('B', { playbackRate: 1.0 })
+              setCoachMessage("🎵 Another One Bites the Dust @ 110 BPM!")
+            }
+          }, 100)
           
           // Let it play for a bit then reset demo mode
           setTimeout(() => {
             if (get().demoMode) {
               set({ demoMode: false })
             }
-          }, 5000)
+          }, 8000)
         }
       }, 100)
       
