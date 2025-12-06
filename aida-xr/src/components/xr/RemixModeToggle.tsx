@@ -6,6 +6,20 @@ import { useFrame } from '@react-three/fiber'
 // Musical phases for the AI remix
 type RemixPhase = 'intro' | 'building' | 'peak' | 'transition' | 'breakdown'
 
+// Mastermind response type
+interface MastermindStrategy {
+  strategy: string
+  phase: string
+  energyTarget: number
+  recommendations: {
+    eqStrategy: string
+    filterStrategy: string
+    transitionStyle: string
+    timing: string
+  }
+  djTip: string
+}
+
 // Smooth value interpolation
 const lerp = (start: number, end: number, t: number) => start + (end - start) * t
 
@@ -22,6 +36,10 @@ export function RemixModeToggle() {
   const timerRef = useRef(0)
   const phaseRef = useRef<RemixPhase>('intro')
   const phaseTimeRef = useRef(0) // Time in current phase
+  const mastermindTimerRef = useRef(0) // Timer for mastermind calls
+  const mastermindStrategyRef = useRef<MastermindStrategy | null>(null)
+  const mixDurationRef = useRef(0) // Total mix duration
+  
   const targetStateRef = useRef({
     crossfader: 0.5,
     deckA: { filter: 1, eqLow: 0.7, eqMid: 0.6, eqHigh: 0.6, volume: 1 },
@@ -32,6 +50,69 @@ export function RemixModeToggle() {
     deckA: { filter: 1, eqLow: 0.7, eqMid: 0.6, eqHigh: 0.6, volume: 1 },
     deckB: { filter: 1, eqLow: 0.7, eqMid: 0.6, eqHigh: 0.6, volume: 1 }
   })
+
+  // Call the DigitalOcean Mastermind for high-level strategy
+  const consultMastermind = async () => {
+    const state = useDJStore.getState()
+    try {
+      const response = await fetch('/api/mastermind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          state: {
+            deckA: {
+              track: state.deckA.track,
+              bpm: state.deckA.bpm,
+              playing: state.deckA.playing,
+              volume: state.deckA.volume,
+              filter: state.deckA.filter,
+              eq: state.deckA.eq,
+              energyLevel: state.deckA.energyLevel
+            },
+            deckB: {
+              track: state.deckB.track,
+              bpm: state.deckB.bpm,
+              playing: state.deckB.playing,
+              volume: state.deckB.volume,
+              filter: state.deckB.filter,
+              eq: state.deckB.eq,
+              energyLevel: state.deckB.energyLevel
+            },
+            crossfader: state.crossfader,
+            currentPhase: phaseRef.current,
+            emotionMode: state.emotionMode,
+            mixDuration: mixDurationRef.current
+          }
+        })
+      })
+      
+      const data = await response.json()
+      if (data.success && data.mastermind) {
+        mastermindStrategyRef.current = data.mastermind
+        console.log("🧠 Mastermind Strategy:", data.mastermind.strategy)
+        
+        // Show DJ tip
+        if (data.mastermind.djTip) {
+          setCoachMessage(`🧠 ${data.mastermind.djTip}`)
+        }
+        
+        // Map mastermind phase to our phase
+        const phaseMap: Record<string, RemixPhase> = {
+          'intro': 'intro',
+          'buildup': 'building',
+          'peak': 'peak',
+          'transition': 'transition',
+          'breakdown': 'breakdown',
+          'outro': 'breakdown'
+        }
+        if (data.mastermind.phase && phaseMap[data.mastermind.phase]) {
+          phaseRef.current = phaseMap[data.mastermind.phase]
+        }
+      }
+    } catch (error) {
+      console.error("Mastermind error:", error)
+    }
+  }
 
   // Calculate next musical phase based on current state
   const calculateNextPhase = (currentPhase: RemixPhase, phaseTime: number): RemixPhase => {
@@ -74,15 +155,22 @@ export function RemixModeToggle() {
     }
   }
 
-  // Set target values based on musical phase
+  // Set target values based on musical phase (enhanced by Mastermind)
   const setTargetsForPhase = (phase: RemixPhase, progress: number) => {
     const state = useDJStore.getState()
     const targets = targetStateRef.current
+    const mm = mastermindStrategyRef.current // Mastermind strategy
+    
+    // Use mastermind's energy target if available
+    const energyMod = mm?.energyTarget || 0.7
+    
+    // Show mastermind strategy in coach message if available
+    const showStrategy = mm?.strategy ? `🧠 ${mm.strategy}` : null
     
     switch (phase) {
       case 'intro':
         // Start with one deck, clean sound
-        setCoachMessage("🎧 AI REMIX: Setting the vibe...")
+        setCoachMessage(showStrategy || "🎧 AI REMIX: Setting the vibe...")
         // Reset playback rates to natural
         updateDeck('A', { playbackRate: 1.0 })
         updateDeck('B', { playbackRate: 1.0 })
@@ -95,54 +183,109 @@ export function RemixModeToggle() {
         // Beat match when bringing in deck B!
         if (progress < 0.1) {
           applyBeatMatch()
-          setCoachMessage("🔥 AI REMIX: Beat matching & building energy...")
+          setCoachMessage(showStrategy || "🔥 AI REMIX: Beat matching & building energy...")
         } else {
-          setCoachMessage("🔥 AI REMIX: Building energy...")
+          setCoachMessage(showStrategy || "🔥 AI REMIX: Building energy...")
         }
         setEmotionMode('hype')
-        // Gradually open filter and bring in deck B
+        
+        // Adjust targets based on mastermind's energy recommendation
+        const buildEnergy = energyMod
         targets.crossfader = lerp(0.2, 0.4, progress)
-        targets.deckA = { filter: 1, eqLow: lerp(0.7, 0.5, progress), eqMid: 0.7, eqHigh: lerp(0.5, 0.7, progress), volume: 1 }
-        targets.deckB = { filter: lerp(0.3, 0.8, progress), eqLow: lerp(0, 0.3, progress), eqMid: lerp(0.3, 0.6, progress), eqHigh: lerp(0.4, 0.7, progress), volume: lerp(0.3, 0.7, progress) }
+        targets.deckA = { 
+          filter: 1, 
+          eqLow: lerp(0.7, 0.5 * buildEnergy, progress), 
+          eqMid: 0.7, 
+          eqHigh: lerp(0.5, 0.7 * buildEnergy, progress), 
+          volume: 1 
+        }
+        targets.deckB = { 
+          filter: lerp(0.3, 0.8, progress), 
+          eqLow: lerp(0, 0.3 * buildEnergy, progress), 
+          eqMid: lerp(0.3, 0.6, progress), 
+          eqHigh: lerp(0.4, 0.7 * buildEnergy, progress), 
+          volume: lerp(0.3, 0.7, progress) 
+        }
         break
         
       case 'peak':
         // Full energy, both decks balanced
-        setCoachMessage("💥 AI REMIX: PEAK ENERGY!")
+        setCoachMessage(showStrategy || "💥 AI REMIX: PEAK ENERGY!")
+        
+        // Mastermind can influence peak energy level
+        const peakEnergy = Math.max(0.8, energyMod)
         targets.crossfader = 0.5
-        targets.deckA = { filter: 1, eqLow: 0.6, eqMid: 0.7, eqHigh: 0.8, volume: 0.9 }
-        targets.deckB = { filter: 1, eqLow: 0.6, eqMid: 0.7, eqHigh: 0.8, volume: 0.9 }
+        targets.deckA = { filter: 1, eqLow: 0.6 * peakEnergy, eqMid: 0.7, eqHigh: 0.8 * peakEnergy, volume: 0.9 }
+        targets.deckB = { filter: 1, eqLow: 0.6 * peakEnergy, eqMid: 0.7, eqHigh: 0.8 * peakEnergy, volume: 0.9 }
         break
         
       case 'transition':
-        // Smooth crossfade with bass swap
-        setCoachMessage("🔀 AI REMIX: Transitioning tracks...")
+        // Smooth crossfade with bass swap - THE KEY TECHNIQUE!
+        setCoachMessage(showStrategy || "🔀 AI REMIX: Bass swap transition...")
         const transitionProgress = progress
-        // Bass swap - the key to clean transitions
-        targets.crossfader = lerp(0.5, 0.85, transitionProgress)
-        targets.deckA = { 
-          filter: lerp(1, 0.5, transitionProgress), 
-          eqLow: lerp(0.6, 0.1, transitionProgress), // Cut bass on outgoing
-          eqMid: lerp(0.7, 0.4, transitionProgress), 
-          eqHigh: lerp(0.8, 0.5, transitionProgress), 
-          volume: lerp(0.9, 0.3, transitionProgress) 
-        }
-        targets.deckB = { 
-          filter: 1, 
-          eqLow: lerp(0.3, 0.8, transitionProgress), // Bring in bass on incoming
-          eqMid: lerp(0.6, 0.75, transitionProgress), 
-          eqHigh: lerp(0.7, 0.8, transitionProgress), 
-          volume: lerp(0.7, 1, transitionProgress) 
+        
+        // Check mastermind's transition style recommendation
+        const transStyle = mm?.recommendations?.transitionStyle || 'bass_swap'
+        
+        if (transStyle === 'cut') {
+          // Quick cut transition
+          targets.crossfader = progress > 0.5 ? 1 : 0
+          targets.deckA = { filter: 1, eqLow: progress > 0.5 ? 0 : 0.7, eqMid: 0.6, eqHigh: 0.6, volume: progress > 0.5 ? 0 : 1 }
+          targets.deckB = { filter: 1, eqLow: progress > 0.5 ? 0.7 : 0, eqMid: 0.6, eqHigh: 0.6, volume: progress > 0.5 ? 1 : 0 }
+        } else if (transStyle === 'filter_sweep') {
+          // Filter sweep transition
+          targets.crossfader = lerp(0.5, 0.85, transitionProgress)
+          targets.deckA = { 
+            filter: lerp(1, 0.2, transitionProgress), 
+            eqLow: 0.6, eqMid: 0.6, eqHigh: 0.6, 
+            volume: lerp(0.9, 0.2, transitionProgress) 
+          }
+          targets.deckB = { 
+            filter: lerp(0.2, 1, transitionProgress), 
+            eqLow: 0.7, eqMid: 0.6, eqHigh: 0.7, 
+            volume: lerp(0.3, 1, transitionProgress) 
+          }
+        } else {
+          // Default: Bass swap (the pro technique)
+          targets.crossfader = lerp(0.5, 0.85, transitionProgress)
+          targets.deckA = { 
+            filter: lerp(1, 0.5, transitionProgress), 
+            eqLow: lerp(0.6, 0.1, transitionProgress), // Cut bass on outgoing
+            eqMid: lerp(0.7, 0.4, transitionProgress), 
+            eqHigh: lerp(0.8, 0.5, transitionProgress), 
+            volume: lerp(0.9, 0.3, transitionProgress) 
+          }
+          targets.deckB = { 
+            filter: 1, 
+            eqLow: lerp(0.3, 0.8, transitionProgress), // Bring in bass on incoming
+            eqMid: lerp(0.6, 0.75, transitionProgress), 
+            eqHigh: lerp(0.7, 0.8, transitionProgress), 
+            volume: lerp(0.7, 1, transitionProgress) 
+          }
         }
         break
         
       case 'breakdown':
         // Reduce energy, filter sweep down
-        setCoachMessage("🌙 AI REMIX: Breakdown...")
+        setCoachMessage(showStrategy || "🌙 AI REMIX: Breakdown...")
         setEmotionMode('dreamy')
+        
+        const breakdownEnergy = Math.min(0.5, energyMod)
         targets.crossfader = 0.6
-        targets.deckA = { filter: lerp(0.5, 0.3, progress), eqLow: 0.3, eqMid: 0.5, eqHigh: 0.4, volume: 0.4 }
-        targets.deckB = { filter: lerp(1, 0.6, progress), eqLow: 0.5, eqMid: 0.6, eqHigh: lerp(0.8, 0.5, progress), volume: 0.8 }
+        targets.deckA = { 
+          filter: lerp(0.5, 0.3, progress), 
+          eqLow: 0.3 * breakdownEnergy, 
+          eqMid: 0.5, 
+          eqHigh: 0.4, 
+          volume: 0.4 
+        }
+        targets.deckB = { 
+          filter: lerp(1, 0.6, progress), 
+          eqLow: 0.5, 
+          eqMid: 0.6, 
+          eqHigh: lerp(0.8, 0.5, progress) * breakdownEnergy, 
+          volume: 0.8 
+        }
         break
     }
   }
@@ -152,10 +295,21 @@ export function RemixModeToggle() {
     if (!remixMode) {
       phaseRef.current = 'intro'
       phaseTimeRef.current = 0
+      mastermindTimerRef.current = 0
+      mixDurationRef.current = 0
+      mastermindStrategyRef.current = null
       return
     }
     
     const currentState = useDJStore.getState()
+    mixDurationRef.current += delta
+    
+    // Consult the Mastermind every 5 seconds for high-level strategy
+    mastermindTimerRef.current += delta
+    if (mastermindTimerRef.current > 5) {
+      mastermindTimerRef.current = 0
+      consultMastermind()
+    }
     
     // Ensure at least deck A is playing
     if (!currentState.deckA.playing && !currentState.deckB.playing) {
