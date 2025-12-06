@@ -18,6 +18,9 @@ export function AIDJHelper() {
   const djScore = useDJStore((state) => state.djScore)
   const djLevel = useDJStore((state) => state.djLevel)
   const crossfader = useDJStore((state) => state.crossfader)
+  const demoMode = useDJStore((state) => state.demoMode)
+  const startDemoMix = useDJStore((state) => state.startDemoMix)
+  const stopDemoMix = useDJStore((state) => state.stopDemoMix)
   
   const updateDeck = useDJStore((state) => state.updateDeck)
   const setCrossfader = useDJStore((state) => state.setCrossfader)
@@ -141,16 +144,19 @@ export function AIDJHelper() {
 
   return (
     <group ref={groupRef}>
-      {/* Main panel background */}
-      <RoundedBox args={[1.0, 0.45, 0.02]} radius={0.02}>
+      {/* Main panel background - Clean and modern */}
+      <RoundedBox args={[0.85, 0.38, 0.025]} radius={0.02}>
         <meshStandardMaterial 
           color="#0a0a0a" 
-          roughness={0.3} 
-          metalness={0.8}
+          roughness={0.2} 
+          metalness={0.9}
           transparent
-          opacity={0.95}
+          opacity={0.98}
         />
       </RoundedBox>
+      
+      {/* Text container - pushed forward to avoid z-fighting */}
+      <group position={[0, 0, 0.02]}>
 
       {/* Top accent bar */}
       <mesh position={[0, 0.2, 0.011]}>
@@ -160,7 +166,7 @@ export function AIDJHelper() {
 
       {/* Header */}
       <Text
-        position={[-0.4, 0.16, 0.015]}
+        position={[-0.35, 0.14, 0]}
         fontSize={0.03}
         color="#fff"
         anchorX="left"
@@ -188,53 +194,79 @@ export function AIDJHelper() {
         {coachMessage || "Ready to mix!"}
       </Text>
 
-      {/* Suggestion Button */}
-      <group position={[-0.25, -0.12, 0.02]} onClick={handleSuggestClick}>
-        <RoundedBox args={[0.22, 0.06, 0.015]} radius={0.01}>
-          <meshStandardMaterial color="#8b5cf6" emissive="#8b5cf6" emissiveIntensity={0.3} />
-        </RoundedBox>
-        <Text position={[0, 0, 0.01]} fontSize={0.018} color="white" fontWeight="bold">
-          WHAT'S NEXT?
-        </Text>
-      </group>
-
-      {/* Do It Button (only shows when suggestion active) */}
-      {currentSuggestion && (
-        <group position={[0.15, -0.12, 0.02]} onClick={handleDoIt}>
-          <RoundedBox args={[0.25, 0.06, 0.015]} radius={0.01}>
-            <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={0.5} />
+      {/* Button Row - Clean layout with proper spacing */}
+      <group position={[0, -0.08, 0.02]}>
+        {/* Demo Button - Main action, prominent */}
+        <group position={[0, 0, 0]} onClick={demoMode ? stopDemoMix : startDemoMix}>
+          <RoundedBox args={[0.25, 0.055, 0.015]} radius={0.01}>
+            <meshStandardMaterial 
+              color={demoMode ? "#ef4444" : "#f59e0b"} 
+              emissive={demoMode ? "#ef4444" : "#f59e0b"} 
+              emissiveIntensity={0.4} 
+            />
           </RoundedBox>
-          <Text position={[0, 0, 0.01]} fontSize={0.016} color="white" fontWeight="bold">
-            DO IT! ▶
+          <Text position={[0, 0, 0.01]} fontSize={0.018} color={demoMode ? "white" : "black"} fontWeight="bold">
+            {demoMode ? "STOP DEMO" : "▶ DEMO MIX"}
           </Text>
         </group>
-      )}
+        
+        {/* Suggestion Button - Left */}
+        {!demoMode && (
+          <group position={[-0.3, 0, 0]} onClick={handleSuggestClick}>
+            <RoundedBox args={[0.18, 0.055, 0.015]} radius={0.01}>
+              <meshStandardMaterial color="#8b5cf6" emissive="#8b5cf6" emissiveIntensity={0.3} />
+            </RoundedBox>
+            <Text position={[0, 0, 0.01]} fontSize={0.014} color="white" fontWeight="bold">
+              SUGGEST
+            </Text>
+          </group>
+        )}
+        
+        {/* Do It Button - Right (only when suggestion active) */}
+        {currentSuggestion && !demoMode && (
+          <group position={[0.3, 0, 0]} onClick={handleDoIt}>
+            <RoundedBox args={[0.18, 0.055, 0.015]} radius={0.01}>
+              <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={0.5} />
+            </RoundedBox>
+            <Text position={[0, 0, 0.01]} fontSize={0.014} color="white" fontWeight="bold">
+              DO IT! ▶
+            </Text>
+          </group>
+        )}
+      </group>
 
-      {/* Deck Status */}
-      <Text
-        position={[-0.25, -0.19, 0.012]}
-        fontSize={0.015}
-        color={deckAPlaying ? "#22c55e" : "#525252"}
-        anchorX="center"
-      >
-        A: {deckAPlaying ? "▶" : "■"}
-      </Text>
-      <Text
-        position={[0, -0.19, 0.012]}
-        fontSize={0.015}
-        color="#666"
-        anchorX="center"
-      >
-        FADE: {(crossfader * 100).toFixed(0)}%
-      </Text>
-      <Text
-        position={[0.25, -0.19, 0.012]}
-        fontSize={0.015}
-        color={deckBPlaying ? "#22c55e" : "#525252"}
-        anchorX="center"
-      >
-        B: {deckBPlaying ? "▶" : "■"}
-      </Text>
+      {/* Deck Status - Bottom row */}
+      <group position={[0, -0.15, 0.02]}>
+        <Text
+          position={[-0.25, 0, 0]}
+          fontSize={0.016}
+          color={deckAPlaying ? "#22c55e" : "#525252"}
+          anchorX="center"
+          fontWeight="bold"
+        >
+          A: {deckAPlaying ? "▶ PLAYING" : "■ STOP"}
+        </Text>
+        <Text
+          position={[0, 0, 0]}
+          fontSize={0.016}
+          color="#06b6d4"
+          anchorX="center"
+        >
+          XFADE: {(crossfader * 100).toFixed(0)}%
+        </Text>
+        <Text
+          position={[0.25, 0, 0]}
+          fontSize={0.016}
+          color={deckBPlaying ? "#22c55e" : "#525252"}
+          anchorX="center"
+          fontWeight="bold"
+        >
+          B: {deckBPlaying ? "▶ PLAYING" : "■ STOP"}
+        </Text>
+      </group>
+      
+      {/* Close the text container group */}
+      </group>
     </group>
   )
 }

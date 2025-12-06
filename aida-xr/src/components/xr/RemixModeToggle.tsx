@@ -77,8 +77,6 @@ export function RemixModeToggle() {
           }
       }
   })
-      }
-  })
 
   return (
     <group onClick={toggleRemixMode}>

@@ -73,6 +73,32 @@ export function EffectsPanel({ side }: EffectsPanelProps) {
         <EffectButton label="ECHO" isOn={echoOn} color="#10b981" />
       </group>
 
+      {/* NOISE Button */}
+      <group position={[-0.08, 0.026, 0.05]} onClick={() => {
+        const noiseOn = !useDJStore.getState()[side === 'left' ? 'deckA' : 'deckB'].noise
+        useDJStore.getState().updateDeck(side === 'left' ? 'A' : 'B', { noise: noiseOn ? 0.5 : 0 })
+        handleEffectToggle('Noise', noiseOn)
+      }}>
+        <EffectButton 
+          label="NOISE" 
+          isOn={useDJStore.getState()[side === 'left' ? 'deckA' : 'deckB'].noise > 0} 
+          color="#ec4899" 
+        />
+      </group>
+
+      {/* GATER Button */}
+      <group position={[0.08, 0.026, 0.05]} onClick={() => {
+        const gaterOn = !useDJStore.getState()[side === 'left' ? 'deckA' : 'deckB'].gater
+        useDJStore.getState().updateDeck(side === 'left' ? 'A' : 'B', { gater: gaterOn ? 0.5 : 0 })
+        handleEffectToggle('Gater', gaterOn)
+      }}>
+        <EffectButton 
+          label="GATER" 
+          isOn={useDJStore.getState()[side === 'left' ? 'deckA' : 'deckB'].gater > 0} 
+          color="#f43f5e" 
+        />
+      </group>
+
       {/* DRY/WET Knob */}
       <group position={[-0.08, 0.026, 0.08]}>
         <Text position={[0, 0, -0.04]} fontSize={0.012} rotation={[-Math.PI/2, 0, 0]} color="#888">DRY/WET</Text>

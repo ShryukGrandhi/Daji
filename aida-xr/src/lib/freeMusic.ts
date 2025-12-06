@@ -14,15 +14,6 @@ const proxyUrl = (url: string) => `/api/audio?url=${encodeURIComponent(url)}`
 
 export const FREE_MUSIC_LIBRARY: FreeTrack[] = [
   {
-    id: 'house-test',
-    title: 'House Test (MP3)',
-    artist: 'SoundHelix',
-    genre: 'house',
-    bpm: 124,
-    url: proxyUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'),
-    tags: ['house', 'test', 'mp3']
-  },
-  {
     id: 'stayin-alive',
     title: "Stayin' Alive",
     artist: 'Bee Gees',
@@ -48,34 +39,7 @@ export const FREE_MUSIC_LIBRARY: FreeTrack[] = [
     bpm: 128,
     url: '/burn.mp4',
     tags: ['world', 'burn', 'intense', 'drop', 'electronic']
-  },
-  {
-    id: 'hoodtrap',
-    title: 'Hoodtrap / Mylancore Remix',
-    artist: 'DJ AIDA',
-    genre: 'trap',
-    bpm: 140,
-    url: proxyUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'),
-    tags: ['hoodtrap', 'mylancore', 'remix', 'trap', 'bass', 'hard']
-  },
-  {
-    id: 'house',
-    title: 'House Groove',
-    artist: 'DJ AIDA',
-    genre: 'house',
-    bpm: 124,
-    url: proxyUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'),
-    tags: ['house', 'deep', 'dance', 'club']
-  },
-  {
-    id: 'techno',
-    title: 'Techno Drive',
-    artist: 'DJ AIDA',
-    genre: 'techno',
-    bpm: 130,
-    url: proxyUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'),
-    tags: ['techno', 'dark', 'driving', 'club']
-  },
+  }
 ]
 
 export function searchTracks(query: string): FreeTrack[] {

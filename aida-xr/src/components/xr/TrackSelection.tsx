@@ -20,9 +20,20 @@ export function TrackSelection() {
 
   return (
     <group>
+      {/* Main Panel Background */}
+      <RoundedBox args={[0.5, 0.35, 0.025]} radius={0.015} position={[0, 0, 0]}>
+        <meshStandardMaterial 
+          color="#0a0a0a" 
+          roughness={0.2} 
+          metalness={0.8}
+          transparent 
+          opacity={0.95} 
+        />
+      </RoundedBox>
+      
       {/* Header */}
       <RoundedBox args={[0.5, 0.05, 0.01]} radius={0.01} position={[0, 0.18, 0]}>
-        <meshStandardMaterial color="#10b981" />
+        <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={0.3} />
       </RoundedBox>
       <Text position={[0, 0.18, 0.01]} fontSize={0.02} color="#000" fontWeight="bold">
         TRACKS

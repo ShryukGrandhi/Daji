@@ -1,6 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Box, Cylinder, Text, RoundedBox } from '@react-three/drei'
 import { useDJStore } from '@/store/useDJStore'
+import { useThree } from '@react-three/fiber'
+import * as THREE from 'three'
 
 export function Mixer() {
   const crossfader = useDJStore((state) => state.crossfader)
@@ -8,6 +10,7 @@ export function Mixer() {
   const updateDeck = useDJStore((state) => state.updateDeck)
   const stemMode = useDJStore((state) => state.stemMode)
   const toggleStemMode = useDJStore((state) => state.toggleStemMode)
+  const setIsInteracting = useDJStore((state) => state.setIsInteracting)
   
   const deckAVolume = useDJStore((state) => state.deckA.volume)
   const deckBVolume = useDJStore((state) => state.deckB.volume)
@@ -17,12 +20,47 @@ export function Mixer() {
   const deckAEqHigh = useDJStore((state) => state.deckA.eq.high)
   const deckBEqLow = useDJStore((state) => state.deckB.eq.low)
   const deckBEqHigh = useDJStore((state) => state.deckB.eq.high)
+  
+  const [isDraggingCrossfader, setIsDraggingCrossfader] = useState(false)
+  const { raycaster } = useThree()
+  
+  const handleCrossfaderDown = (e: any) => {
+    e.stopPropagation()
+    setIsDraggingCrossfader(true)
+    setIsInteracting(true)
+    e.target.setPointerCapture(e.pointerId)
+  }
+  
+  const handleCrossfaderUp = (e: any) => {
+    e.stopPropagation()
+    setIsDraggingCrossfader(false)
+    setIsInteracting(false)
+    e.target.releasePointerCapture(e.pointerId)
+  }
+  
+  const handleCrossfaderMove = (e: any) => {
+    if (!isDraggingCrossfader) return
+    e.stopPropagation()
+    
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+    const intersection = new THREE.Vector3()
+    raycaster.ray.intersectPlane(plane, intersection)
+    
+    // Map X position to crossfader value (0-1)
+    const newValue = Math.max(0, Math.min(1, (intersection.x / 0.3) + 0.5))
+    setCrossfader(newValue)
+  }
 
   return (
     <group>
-      {/* Main mixer body */}
+      {/* Main mixer body - more visible */}
       <RoundedBox args={[0.55, 0.06, 0.85]} radius={0.02} position={[0, 0.01, 0]}>
-        <meshStandardMaterial color="#0a0a0a" roughness={0.3} metalness={0.6} />
+        <meshStandardMaterial color="#1a1a1a" roughness={0.3} metalness={0.6} />
+      </RoundedBox>
+      
+      {/* Mixer top surface highlight */}
+      <RoundedBox args={[0.55, 0.01, 0.85]} radius={0.02} position={[0, 0.04, 0]}>
+        <meshStandardMaterial color="#2a2a2a" emissive="#1a1a1a" emissiveIntensity={0.2} />
       </RoundedBox>
 
       {/* STEMS / EQ Toggle Button */}
@@ -67,9 +105,15 @@ export function Mixer() {
           </Box>
         </group>
 
-        {/* Crossfader handle */}
-        <Box args={[0.04, 0.04, 0.025]} position={[(crossfader - 0.5) * 0.3, 0.02, 0]}>
-          <meshStandardMaterial color="#ddd" metalness={0.8} roughness={0.2} />
+        {/* Crossfader handle - draggable */}
+        <Box 
+          args={[0.04, 0.04, 0.025]} 
+          position={[(crossfader - 0.5) * 0.3, 0.02, 0]}
+          onPointerDown={handleCrossfaderDown}
+          onPointerUp={handleCrossfaderUp}
+          onPointerMove={handleCrossfaderMove}
+        >
+          <meshStandardMaterial color={isDraggingCrossfader ? "#fff" : "#ddd"} metalness={0.8} roughness={0.2} />
         </Box>
         
         {/* A/B Labels */}

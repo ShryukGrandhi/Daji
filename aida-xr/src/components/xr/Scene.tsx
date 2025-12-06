@@ -6,6 +6,7 @@ import { Console } from './Console'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { useAudioEngine } from '@/hooks/useAudioEngine'
 import { useVoiceControl } from '@/hooks/useVoiceControl'
+import { useDJStore } from '@/store/useDJStore'
 
 import { YouTubeManager } from '@/components/yt/YouTubeManager'
 
@@ -66,35 +67,37 @@ function LoadingFallback() {
 
 function SceneContent() {
     useAudioEngine()
+    const isInteracting = useDJStore((state) => state.isInteracting)
     
     return (
         <XR store={xrStore}>
-            <ambientLight intensity={0.4} />
+            <ambientLight intensity={0.8} />
             <spotLight 
                 position={[0, 4, 2]} 
                 angle={0.6} 
                 penumbra={0.5} 
-                intensity={1.5} 
+                intensity={2.5} 
                 castShadow 
                 shadow-mapSize={[1024, 1024]}
             />
             
-            <pointLight position={[-3, 2, -3]} intensity={10} color="#3b82f6" distance={10} /> 
-            <pointLight position={[3, 2, -3]} intensity={10} color="#d946ef" distance={10} />
-            <pointLight position={[0, 5, 0]} intensity={5} color="#ffffff" distance={10} />
+            <pointLight position={[-3, 2, -3]} intensity={15} color="#3b82f6" distance={15} /> 
+            <pointLight position={[3, 2, -3]} intensity={15} color="#d946ef" distance={15} />
+            <pointLight position={[0, 5, 0]} intensity={10} color="#ffffff" distance={15} />
+            <pointLight position={[0, 2, 1]} intensity={8} color="#ffffff" distance={10} />
 
             <Suspense fallback={<LoadingFallback />}>
-              <group position={[0, 1.0, -0.5]}>
+              <group position={[0, 1.0, -0.3]}>
                   <Console />
               </group>
             </Suspense>
             
-            <ContactShadows position={[0, 0, 0]} opacity={0.5} scale={10} blur={2.5} far={4} resolution={256} />
+            <ContactShadows position={[0, 0.9, -0.3]} opacity={0.5} scale={10} blur={2.5} far={4} resolution={256} />
             
             <Environment preset="night" background blur={0.6} />
             <Stars radius={100} depth={50} count={2000} factor={4} saturation={0.1} fade speed={1} />
             
-            <OrbitControls target={[0, 1.1, -0.5]} makeDefault />
+            <OrbitControls target={[0, 1.0, -0.3]} makeDefault enabled={!isInteracting} minDistance={1.5} maxDistance={5} />
         </XR>
     )
 }
@@ -263,7 +266,7 @@ export default function Scene() {
       />
       <Canvas 
         shadows 
-        camera={{ position: [0, 1.7, 0.8], fov: 55 }} 
+        camera={{ position: [0, 1.6, 1.2], fov: 60 }} 
         dpr={[1, 1.5]}
         gl={{ 
           antialias: true,

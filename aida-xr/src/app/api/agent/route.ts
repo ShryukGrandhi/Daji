@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ai } from '@/lib/gemini';
 import { FREE_MUSIC_LIBRARY, getBestMatch } from '@/lib/freeMusic';
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "AIzaSyCxQFVzQv4kpOFNG-C_DtmFEXwtJzP9nxo";
 
 // Define valid JSON actions in the prompt
 const SYSTEM_PROMPT = `You are AIDA, an advanced AI DJ Assistant. Your goal is to help the user mix music professionally or take control when requested.
@@ -35,6 +36,21 @@ AVAILABLE ACTIONS:
           { type: "emotion", mode?: string }
         ]
       }
+11. AI_GUIDANCE: Provide visual guidance suggestions (arrows, ghost hands, countdowns).
+    - parameters: {
+        suggestions: [
+          { id: string, type: "arrow"|"ghost_hand"|"countdown", target: string, action: string, beatsUntil: number, direction?: [number, number, number], position?: [number, number, number] }
+        ],
+        beatsUntilNextAction: number
+      }
+12. AUTO_MIX_SUGGESTIONS: Suggest track pairings and transition strategies.
+    - parameters: {
+        trackPairing: { trackA: string, trackB: string } | null,
+        transitionType: "fade"|"cut"|"filter"|"eq" | null,
+        idealTransitionPoint: number | null,
+        recommendedBPMShift: number | null,
+        frequencyCuts: { deck: "A"|"B", eq: {low?: number, mid?: number, high?: number} } | null
+      }
 
 TRACK LIBRARY:
 ${FREE_MUSIC_LIBRARY.map(t => `- "${t.id}": ${t.title} (${t.bpm} BPM, ${t.genre})`).join('\n')}
@@ -44,6 +60,31 @@ RULES:
 - "speech" should be a short, cool DJ announcement (e.g., "Dropping the bass!", "Fading into Deck B").
 - If the user asks to "mix it" or "remix", use logical steps to transition.
 `;
+
+async function callGemini(prompt: string): Promise<string> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+        }
+      })
+    }
+  );
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+  }
+  
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -85,22 +126,21 @@ Emotion: ${state.emotionMode}
     }
 
     // Call Gemini
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: `${SYSTEM_PROMPT}\n${contextString}\nUser: "${message}"\nJSON:`,
-    });
+    console.log("🤖 Calling Gemini API...");
+    const text = await callGemini(`${SYSTEM_PROMPT}\n${contextString}\nUser: "${message}"\nJSON:`);
 
-    let text = response.text || "";
+    console.log("🤖 Gemini response:", text.slice(0, 200));
+    
     // Clean up markdown if present
-    text = text.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) text = match[0];
+    let cleanText = text.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+    const match = cleanText.match(/\{[\s\S]*\}/);
+    if (match) cleanText = match[0];
 
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      parsed = JSON.parse(cleanText);
     } catch (e) {
-      console.error("JSON Parse Error:", text);
+      console.error("JSON Parse Error:", cleanText);
       return NextResponse.json({ action: "EXPLAIN", speech: "I'm having trouble thinking right now." });
     }
 
@@ -120,7 +160,10 @@ Emotion: ${state.emotionMode}
     return NextResponse.json(parsed);
 
   } catch (e: any) {
-    console.error("Agent Error:", e?.message);
-    return NextResponse.json({ action: "EXPLAIN", speech: "System malfunction." });
+    console.error("Agent Error:", e?.message, e?.stack);
+    return NextResponse.json({ 
+      action: "EXPLAIN", 
+      speech: `Error: ${e?.message || 'Unknown error'}` 
+    });
   }
 }
